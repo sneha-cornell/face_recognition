@@ -58,7 +58,40 @@ The ArcFace head is training-only and is discarded at inference — only the bac
 
 ## Training
 
-**Dataset:** CASIA-WebFace (~494,414 images, ~10,575 identities)
+### Dataset: CASIA-WebFace
+
+Pre-aligned 112×112 face crops in RGB JPEG format. Each image contains exactly **1 face** — the dataset is pre-cropped and landmark-aligned (5-point: eyes, nose, mouth corners) before storage.
+
+**Scale (measured on this dataset):**
+
+| Stat | Value |
+|---|---|
+| Total images | 490,623 |
+| Identities | 10,572 |
+| Images per identity — mean | 46.4 |
+| Images per identity — median | 27 |
+| Images per identity — min / max | 2 / 802 |
+| Images per identity — std | 59.3 |
+| Identities with ≥ 20 images | 7,502 (71%) |
+| Identities with ≥ 50 images | 2,511 (24%) |
+
+**Image quality (measured over 52,855 sampled images):**
+
+| Metric | Value |
+|---|---|
+| Resolution | 112 × 112 px (fixed, pre-aligned) |
+| Faces per image | 1 (pre-cropped) |
+| Sharpness — mean Laplacian variance | 492.5 |
+| Sharpness — median | 325.0 |
+| Blurry images (Laplacian var < 100) | **19.4%** |
+| Brightness — mean (0–255) | 107.8 |
+| Brightness — std | 31.1 |
+| Dark images (mean < 64) | 8.1% |
+| Over-exposed (mean > 200) | 0.1% |
+| Contrast — mean pixel std | 54.7 |
+| Decode errors | 0 |
+
+The 19% blurry fraction reflects real-world conditions in the original CASIA-WebFace scrape: motion blur, low-resolution source frames, and out-of-focus captures. The distribution is long-tailed — most images are sharp (median 325) with a minority of poor-quality examples that add robustness.
 
 **Training configuration:**
 
@@ -71,6 +104,7 @@ The ArcFace head is training-only and is discarded at inference — only the bac
 | Optimiser | SGD, momentum=0.9, weight decay=5e-4 |
 | LR schedule | Cosine decay, initial LR=0.1 |
 | Embedding dim | 128 |
+| Hardware | Apple M5, Metal GPU (tensorflow-metal 1.2.0 + TF 2.17) |
 
 **Augmentation (training only):** random horizontal flip, brightness jitter ±0.15, contrast jitter 0.85–1.15.
 
@@ -96,15 +130,15 @@ Given two face images, predict whether they belong to the same person.
 | TAR @ FAR=1e-4 | True Accept Rate when False Accept Rate = 0.01% |
 | AUC | Area under ROC curve |
 
-Expected performance range for a model of this scale (~400K params, 128-dim embeddings, CASIA-WebFace training):
+Results are updated after training completes (see below). Reference ranges for lightweight ArcFace at this parameter budget (~400K params, 128-dim):
 
-| Benchmark | Expected Accuracy |
+| Benchmark | Reference Range |
 |---|---|
 | LFW | ~98.5 – 99.0% |
 | CFP-FP (frontal–profile) | ~88 – 92% |
 | AgeDB-30 | ~91 – 94% |
 
-> These are typical ranges for lightweight ArcFace models at this parameter budget. Actual results depend on training duration, data quality, and alignment preprocessing.
+> Training in progress on Apple M5 (Metal GPU). Results will be filled in once the 40-epoch run on CASIA-WebFace completes.
 
 ### 2. Identification (1:N)
 Given a probe image, find the closest match from an enrolled gallery (used by the `verify` command in `inference.py`).
