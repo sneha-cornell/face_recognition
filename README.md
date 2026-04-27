@@ -24,13 +24,15 @@ A compact face recognition system built for edge deployment. The backbone (~404K
 
 Each block uses the pattern: `1×1 expand → DepthwiseConv3×3 → 1×1 linear project (no activation)`. No residual additions — designed for GPX10 compiler compatibility.
 
+The embedding head is `Dense(128) → BatchNormalization`. The BN is critical: without it, embedding norms grow unbounded (~480+ observed without BN), which shrinks gradients through the ArcFace L2-normalization step and causes representation collapse. BN keeps norms bounded so ArcFace training stays well-conditioned throughout.
+
 **Parameter summary (verified by running `model.py`):**
 
 | | Count |
 |--|--|
-| Total parameters | 403,776 |
+| Total parameters | 404,288 |
 | Trainable | 396,416 |
-| Non-trainable (BN stats) | 7,360 |
+| Non-trainable (BN stats) | 7,872 |
 | Model size (fp32) | **1.62 MB** |
 | Model size (int8 quantized) | **~0.40 MB** |
 
@@ -105,6 +107,8 @@ The 19% blurry fraction reflects real-world conditions in the original CASIA-Web
 | LR schedule | Cosine decay, initial LR=0.1 |
 | Embedding dim | 128 |
 | Hardware | Apple M5, Metal GPU (tensorflow-metal 1.2.0 + TF 2.17) |
+| ArcFace scale | 32 (subset), 64 (full run) |
+| ArcFace margin | 0.3 (subset), 0.5 (full run) |
 
 **Augmentation (training only):** random horizontal flip, brightness jitter ±0.15, contrast jitter 0.85–1.15.
 

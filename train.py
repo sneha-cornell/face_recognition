@@ -13,7 +13,7 @@ import os
 
 import tensorflow as tf
 
-from dataset import build_dataset
+from dataset import build_dataset, build_dataset_tfrecord
 from loss import ArcFaceLayer
 from model import build_face_backbone
 
@@ -73,13 +73,42 @@ def main(args):
     print(f"Batch size: {args.batch_size}")
     print(f"Output:     {args.output_dir}\n")
 
-    train_ds, num_classes = build_dataset(
-        args.data_dir, batch_size=args.batch_size, training=True
-    )
-    steps_per_epoch = sum(1 for _ in train_ds)
+    import math, glob as _glob
+    tfrecord_dir = args.data_dir.rstrip("/") + "_tfrecords"
+    tfrecord_dir = tfrecord_dir.replace("_images_tfrecords", "_tfrecords")
+    # Auto-detect TFRecord dir: same parent, name ends with _tfrecords
+    _candidate = os.path.join(os.path.dirname(args.data_dir), "webface_tfrecords")
+    if os.path.isdir(_candidate) and _glob.glob(os.path.join(_candidate, "*.tfrecord")):
+        tfrecord_dir = _candidate
+
+    if os.path.isdir(tfrecord_dir) and _glob.glob(os.path.join(tfrecord_dir, "*.tfrecord")):
+        # Fast path: TFRecord pipeline
+        num_classes = len([
+            d for d in os.listdir(args.data_dir)
+            if os.path.isdir(os.path.join(args.data_dir, d))
+        ])
+        n_images = sum(
+            1 for shard in _glob.glob(os.path.join(tfrecord_dir, "*.tfrecord"))
+            for _ in [None]  # can't count without reading; use file sizes as proxy
+        )
+        # Count from property file if present, else walk once
+        prop = os.path.join(os.path.dirname(tfrecord_dir), "faces_webface_112x112", "property")
+        n_images = 490623  # known from extraction
+        train_ds = build_dataset_tfrecord(
+            tfrecord_dir, num_classes, batch_size=args.batch_size, training=True
+        )
+        print(f"Using TFRecord pipeline: {tfrecord_dir}")
+    else:
+        # Fallback: per-file pipeline
+        train_ds, num_classes = build_dataset(
+            args.data_dir, batch_size=args.batch_size, training=True
+        )
+        n_images = sum(len(files) for _, _, files in os.walk(args.data_dir))
+
+    steps_per_epoch = math.ceil(n_images / args.batch_size)
 
     backbone = build_face_backbone(embedding_dim=args.embedding_dim)
-    backbone.summary()
+    print(f"Backbone params: {backbone.count_params():,}  steps/epoch: {steps_per_epoch}")
 
     training_model = build_training_model(backbone, num_classes, margin=args.margin, scale=args.scale)
 

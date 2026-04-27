@@ -97,7 +97,8 @@ def build_face_backbone(embedding_dim=128, input_shape=(112, 112, 3)):
     x = layers.AveragePooling2D(pool_size=7, strides=1, padding="valid", name="gap")(x)
     x = layers.Flatten(name="flatten")(x)
 
-    # Linear embedding head: learned compression from pooled 256-dim to embedding_dim
+    # Linear embedding head + BN — BN keeps norms bounded so ArcFace stays well-conditioned
     embeddings = layers.Dense(embedding_dim, use_bias=False, name="embedding")(x)
+    embeddings = layers.BatchNormalization(name="embedding_bn")(embeddings)
 
     return Model(inputs=inputs, outputs=embeddings, name="face_backbone")
